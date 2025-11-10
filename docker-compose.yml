@@ -1,0 +1,169 @@
+services:
+  # 1. Cơ sở dữ liệu chính
+  postgres-db:
+    image: postgres:14-alpine
+    container_name: postgres-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 2. Vector Database
+  milvus-standalone:
+    image: milvusdb/milvus:v2.4.3
+    container_name: milvus-standalone
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    environment:
+      - MILVUS_DEPLOY_MODE=standalone
+    volumes:
+      - milvus-data:/var/lib/milvus
+    restart: unless-stopped
+    command: ["milvus", "run", "standalone"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9091/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # 3. Message Broker
+  kafka:
+    # 1. Đổi image sang Confluent (phiên bản 7.5.0 tương đương Kafka 3.5)
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    ports:
+      - "9094:9094"
+
+    # 2. Thay đổi đường dẫn volume (Confluent dùng /var/lib/kafka/data)
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+
+    environment:
+      # 3. Bỏ tiền tố KAFKA_CFG_ (tên biến giữ nguyên)
+      KAFKA_NODE_ID: 0
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://host.docker.internal:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 0@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
+      # 4. Thêm các biến MỚI cần thiết cho Confluent KRaft
+      # Cần cung cấp một Cluster ID ngẫu nhiên (bạn có thể tự tạo)
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data/logs" # Chỉ định rõ đường dẫn log
+
+    # 5. Thêm lệnh command để format storage cho KRaft
+    # Lệnh này sẽ chỉ chạy 1 lần đầu tiên
+    command: >
+      bash -c "
+        if [ ! -f '/var/lib/kafka/data/meta.properties' ]; then
+          echo 'Formatting storage...'
+          kafka-storage format --config /etc/kafka/kraft/server.properties --cluster-id ${CLUSTER_ID}
+        fi &&
+        kafka-server-start /etc/kafka/kraft/server.properties
+      "
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bash",
+          "-c",
+          "kafka-topics --bootstrap-server localhost:9092 --list || exit 1",
+        ]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+
+  # 4. Service: API Gateway (Chạy liên tục)
+  api-gateway:
+    build: ./api_gateway
+    container_name: api-gateway
+    env_file: .env
+    ports:
+      - "5000:5000"
+    restart: on-failure
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      milvus-standalone:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+
+  # 5. Service: Xử lý Stream (Chạy liên tục)
+  spark-master:
+    image: apache/spark-py:v3.4.0
+    container_name: spark-master
+    hostname: spark-master
+    ports:
+      - "8082:8081" # Spark Master UI
+      - "7077:7077" # Cổng kết nối
+    environment:
+      - SPARK_NO_DAEMONIZE=true # Chạy ở foreground
+      - SPARK_MASTER_HOST=spark-master
+    # Lệnh để khởi động master
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+
+  spark-worker:
+    image: apache/spark-py:v3.4.0
+    container_name: spark-worker
+    depends_on:
+      - spark-master
+    environment:
+      - SPARK_NO_DAEMONIZE=true
+      - SPARK_WORKER_CORES=2 # Tùy chỉnh tài nguyên
+      - SPARK_WORKER_MEMORY=2G
+    # Lệnh để khởi động worker và kết nối đến master
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    user: root
+    volumes:
+      - spark-work:/opt/spark/work
+
+  spark-processor:
+    # Dùng image apache/spark-py để build
+    build: ./spark_processor
+    container_name: spark-processor
+    env_file: .env
+    depends_on:
+      spark-master:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+      postgres-db:
+        condition: service_healthy
+    command: >
+      /bin/bash -c "
+      # Chờ master sẵn sàng (hữu ích)
+      sleep 10; 
+
+      # ĐƯỜNG DẪN ĐÃ THAY ĐỔI: /opt/spark
+      /opt/spark/bin/spark-submit \
+        --master spark://spark-master:7077 \
+        --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.postgresql:postgresql:42.6.0 \
+        /app/processor.py
+      "
+
+volumes:
+  spark-work:
+  postgres-data:
+  milvus-data:
+  kafka-data:
+    driver: local
