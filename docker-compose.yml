@@ -1,3 +1,5 @@
+version: "3.8"
+
 services:
   # 1. Cơ sở dữ liệu chính
   postgres-db:
@@ -11,6 +13,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    networks:
+      - app-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
@@ -18,130 +22,178 @@ services:
       timeout: 5s
       retries: 5
 
-  # 2. Vector Database
+  # 2. Etcd (Dependency cho Milvus)
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    container_name: milvus-etcd
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - etcd-data:/etcd
+    networks:
+      - app-network
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # 3. MinIO (Storage cho Milvus)
+  minio:
+    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    container_name: milvus-minio
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    ports:
+      - "9001:9001"
+      - "9000:9000"
+    volumes:
+      - minio-data:/minio_data
+    networks:
+      - app-network
+    command: minio server /minio_data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # 4. Vector Database (Milvus)
   milvus-standalone:
     image: milvusdb/milvus:v2.4.3
     container_name: milvus-standalone
+    depends_on:
+      etcd:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     ports:
       - "19530:19530"
       - "9091:9091"
     environment:
-      - MILVUS_DEPLOY_MODE=standalone
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
     volumes:
       - milvus-data:/var/lib/milvus
+    networks:
+      - app-network
     restart: unless-stopped
     command: ["milvus", "run", "standalone"]
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9091/healthz || exit 1"]
-      interval: 10s
-      timeout: 5s
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      timeout: 20s
       retries: 10
-      start_period: 40s
+      start_period: 90s
 
-  # 3. Message Broker
+  # 5. Message Broker (Kafka KRaft)
   kafka:
-    # 1. Đổi image sang Confluent (phiên bản 7.5.0 tương đương Kafka 3.5)
     image: confluentinc/cp-kafka:7.5.0
     container_name: kafka
     ports:
       - "9094:9094"
-
-    # 2. Thay đổi đường dẫn volume (Confluent dùng /var/lib/kafka/data)
     volumes:
       - kafka-data:/var/lib/kafka/data
-
+    networks:
+      - app-network
     environment:
-      # 3. Bỏ tiền tố KAFKA_CFG_ (tên biến giữ nguyên)
-      KAFKA_NODE_ID: 0
+      KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://host.docker.internal:9094
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 0@kafka:9093
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-
-      # 4. Thêm các biến MỚI cần thiết cho Confluent KRaft
-      # Cần cung cấp một Cluster ID ngẫu nhiên (bạn có thể tự tạo)
-      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_LOG_DIRS: "/var/lib/kafka/data/logs" # Chỉ định rõ đường dẫn log
-
-    # 5. Thêm lệnh command để format storage cho KRaft
-    # Lệnh này sẽ chỉ chạy 1 lần đầu tiên
-    command: >
-      bash -c "
-        if [ ! -f '/var/lib/kafka/data/meta.properties' ]; then
-          echo 'Formatting storage...'
-          kafka-storage format --config /etc/kafka/kraft/server.properties --cluster-id ${CLUSTER_ID}
-        fi &&
-        kafka-server-start /etc/kafka/kraft/server.properties
-      "
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    restart: unless-stopped
     healthcheck:
       test:
         [
-          "CMD",
-          "bash",
-          "-c",
-          "kafka-topics --bootstrap-server localhost:9092 --list || exit 1",
+          "CMD-SHELL",
+          "kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1",
         ]
-      interval: 20s
+      interval: 30s
       timeout: 10s
       retries: 10
-      start_period: 40s
+      start_period: 60s
 
-  # 4. Service: API Gateway (Chạy liên tục)
+  # 6. Service: API Gateway
   api-gateway:
     build: ./api_gateway
     container_name: api-gateway
     env_file: .env
     ports:
       - "5000:5000"
+    networks:
+      - app-network
     restart: on-failure
     depends_on:
       postgres-db:
         condition: service_healthy
       milvus-standalone:
-        condition: service_started
+        condition: service_healthy
       kafka:
         condition: service_healthy
 
-  # 5. Service: Xử lý Stream (Chạy liên tục)
+  # 7. Spark Master
   spark-master:
-    image: apache/spark-py:v3.4.0
+    image: bitnami/spark:3.4.0
     container_name: spark-master
     hostname: spark-master
     ports:
-      - "8082:8081" # Spark Master UI
-      - "7077:7077" # Cổng kết nối
+      - "8082:8080"
+      - "7077:7077"
     environment:
-      - SPARK_NO_DAEMONIZE=true # Chạy ở foreground
-      - SPARK_MASTER_HOST=spark-master
-    # Lệnh để khởi động master
-    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    networks:
+      - app-network
+    volumes:
+      - spark-master-data:/bitnami
+    restart: unless-stopped
 
+  # 8. Spark Worker
   spark-worker:
-    image: apache/spark-py:v3.4.0
+    image: bitnami/spark:3.4.0
     container_name: spark-worker
     depends_on:
       - spark-master
     environment:
-      - SPARK_NO_DAEMONIZE=true
-      - SPARK_WORKER_CORES=2 # Tùy chỉnh tài nguyên
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
       - SPARK_WORKER_MEMORY=2G
-    # Lệnh để khởi động worker và kết nối đến master
-    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
-    user: root
+      - SPARK_WORKER_CORES=2
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    networks:
+      - app-network
     volumes:
-      - spark-work:/opt/spark/work
+      - spark-worker-data:/bitnami
+    restart: unless-stopped
 
+  # 9. Spark Processor
   spark-processor:
-    # Dùng image apache/spark-py để build
     build: ./spark_processor
     container_name: spark-processor
     env_file: .env
+    networks:
+      - app-network
     depends_on:
       spark-master:
         condition: service_started
@@ -149,21 +201,28 @@ services:
         condition: service_healthy
       postgres-db:
         condition: service_healthy
+    restart: on-failure
     command: >
       /bin/bash -c "
-      # Chờ master sẵn sàng (hữu ích)
-      sleep 10; 
+      echo 'Waiting for Spark Master to be ready...';
+      sleep 30;
 
-      # ĐƯỜNG DẪN ĐÃ THAY ĐỔI: /opt/spark
-      /opt/spark/bin/spark-submit \
+      /opt/bitnami/spark/bin/spark-submit \
         --master spark://spark-master:7077 \
-        --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.postgresql:postgresql:42.6.0 \
+        --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.0,org.postgresql:postgresql:42.6.0 \
+        --conf spark.sql.streaming.checkpointLocation=/tmp/checkpoint \
         /app/processor.py
       "
 
+networks:
+  app-network:
+    driver: bridge
+
 volumes:
-  spark-work:
   postgres-data:
+  etcd-data:
+  minio-data:
   milvus-data:
   kafka-data:
-    driver: local
+  spark-master-data:
+  spark-worker-data:
