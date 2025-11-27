@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="relative h-screen w-full bg-[url('https://assets.nflxext.com/ffe/siteui/vlv3/f841d4c7-10e1-40af-bcae-07a3f8dc141a/f6d7434e-d6de-4185-a6d4-c77a2d08737b/US-en-20220502-popsignuptwoweeks-perspective_alpha_website_medium.jpg')] bg-cover bg-center bg-no-repeat">
+    <div class="absolute inset-0 bg-black/60 bg-gradient-to-t from-black via-transparent to-black/60"></div>
+    
+    <div class="relative z-10 flex flex-col items-center justify-center h-full text-center px-4">
+        <h1 class="text-4xl md:text-6xl font-bold max-w-4xl mb-6">Unlimited movies, TV shows, and more.</h1>
+        <p class="text-xl md:text-2xl mb-8">Watch anywhere. Cancel anytime.</p>
+        <p class="text-lg md:text-xl mb-4">Ready to watch? Enter your email to create or restart your membership.</p>
+        
+        <div class="flex flex-col md:flex-row gap-4 w-full max-w-2xl">
+            <input type="email" placeholder="Email address" class="flex-1 px-6 py-4 rounded text-black focus:outline-none focus:ring-2 focus:ring-red-600">
+            <a href="{{ url_for('auth.register') }}" class="bg-[#E50914] hover:bg-[#b20710] text-white text-xl md:text-2xl font-medium px-8 py-4 rounded flex items-center justify-center gap-2 transition">
+                Get Started <i class="fas fa-chevron-right text-sm"></i>
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="border-t-8 border-[#222] bg-black py-16 px-4 md:px-12">
+    <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-12">
+        <div class="flex-1 text-center md:text-left">
+            <h2 class="text-4xl md:text-5xl font-bold mb-6">Enjoy on your TV.</h2>
+            <p class="text-xl md:text-2xl">Watch on Smart TVs, Playstation, Xbox, Chromecast, Apple TV, Blu-ray players, and more.</p>
+        </div>
+        <div class="flex-1 relative">
+            <img src="https://assets.nflxext.com/ffe/siteui/acquisition/ourStory/fuji/desktop/tv.png" alt="TV" class="relative z-10">
+            <div class="absolute top-[20%] left-[13%] w-[73%] h-[54%] bg-black">
+                <video class="w-full h-full object-cover" autoplay playsinline muted loop>
+                    <source src="https://assets.nflxext.com/ffe/siteui/acquisition/ourStory/fuji/desktop/video-tv-0819.m4v" type="video/mp4">
+                </video>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

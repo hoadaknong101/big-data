@@ -4,6 +4,9 @@ import pandas as pd
 import numpy as np
 from sqlalchemy import create_engine
 from pymilvus import connections, FieldSchema, CollectionSchema, DataType, Collection, utility
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- Configs ---
 # DB
@@ -12,10 +15,12 @@ DB_PASSWORD = os.environ.get('POSTGRES_PASSWORD')
 DB_HOST = os.environ.get('POSTGRES_HOST')
 DB_NAME = os.environ.get('POSTGRES_DB')
 DB_URL = f'postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:5432/{DB_NAME}'
+print(DB_URL)
 
 # Milvus
 MILVUS_HOST = os.environ.get('MILVUS_HOST')
 MILVUS_PORT = os.environ.get('MILVUS_PORT')
+print(MILVUS_HOST, MILVUS_PORT)
 
 # Model
 EMBEDDING_DIM = 32 # Kích thước vector embedding
@@ -120,6 +125,10 @@ def create_milvus_collections():
     }
     movie_collection.create_index("embedding", index_params)
     print("Tạo index cho movie embeddings thành công.")
+
+    # --- Tạo Index cho User ---
+    user_collection.create_index("embedding", index_params)
+    print("Tạo index cho user embeddings thành công.")
     
     return user_collection, movie_collection
 

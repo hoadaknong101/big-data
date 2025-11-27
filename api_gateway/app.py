@@ -6,8 +6,10 @@ from pymilvus import connections, Collection, utility
 from kafka import KafkaProducer
 from sqlalchemy import create_engine
 import pandas as pd
+from dotenv import load_dotenv
 
-# --- Configs ---
+load_dotenv()
+
 DB_USER = os.environ.get('POSTGRES_USER')
 DB_PASSWORD = os.environ.get('POSTGRES_PASSWORD')
 DB_HOST = os.environ.get('POSTGRES_HOST')
@@ -34,6 +36,9 @@ except Exception as e:
     print(f"❌ API lỗi kết nối Postgres: {e}")
 
 # Kết nối Milvus
+user_collection = None
+movie_collection = None
+
 try:
     connections.connect("default", host=MILVUS_HOST, port=MILVUS_PORT)
     # Load collection
@@ -48,6 +53,7 @@ except Exception as e:
     print(f"❌ API lỗi kết nối Milvus: {e}")
 
 # Kết nối Kafka
+producer = None
 try:
     producer = KafkaProducer(
         bootstrap_servers=[KAFKA_BROKER],
@@ -73,6 +79,9 @@ def get_recommendations(user_id):
     3. Lấy thông tin (title) của 10 movie đó từ Postgres.
     """
     try:
+        if user_collection is None or movie_collection is None:
+             return jsonify({"error": "Milvus collection not initialized"}), 503
+
         # 1. Lấy user embedding
         # Truy vấn (query) để lấy embedding của user_id cụ thể
         res = user_collection.query(
@@ -82,7 +91,7 @@ def get_recommendations(user_id):
         
         if not res:
             return jsonify({"error": f"User ID {user_id} không tìm thấy embedding."}), 404
-            
+   
         user_vector = res[0]['embedding']
         
         # 2. Tìm kiếm (search) movie gần nhất
@@ -95,7 +104,7 @@ def get_recommendations(user_id):
             data=[user_vector],
             anns_field="embedding",
             param=search_params,
-            limit=10,
+            limit=20,
             output_fields=["movie_id"]
         )
         
@@ -107,19 +116,20 @@ def get_recommendations(user_id):
             
         # Tạo câu truy vấn SQL an toàn
         ids_tuple = tuple(movie_ids)
-        query = f"SELECT movie_id, title, genres FROM movies WHERE movie_id IN {ids_tuple}"
+        query = f"SELECT id, title, genres FROM movies WHERE id IN {ids_tuple}"
         
         movie_details_df = pd.read_sql(query, db_engine)
         
         # Sắp xếp kết quả theo thứ tự trả về từ Milvus
-        movie_details_df['movie_id'] = movie_details_df['movie_id'].astype('category')
-        movie_details_df['movie_id'].cat.set_categories(movie_ids, inplace=True)
-        movie_details_df = movie_details_df.sort_values('movie_id')
+        movie_details_df['id'] = movie_details_df['id'].astype('category')
+        movie_details_df['id'] = movie_details_df['id'].cat.set_categories(movie_ids)
+        movie_details_df = movie_details_df.sort_values('id')
         
         return jsonify(movie_details_df.to_dict('records')), 200
 
     except Exception as e:
         print(f"Lỗi khi lấy gợi ý: {e}")
+        print(e)
         return jsonify({"error": str(e)}), 500
 
 @app.route("/event", methods=['POST'])
@@ -137,14 +147,18 @@ def post_event():
         data['timestamp'] = int(time.time())
         
         # Gửi tới Kafka
-        producer.send(KAFKA_TOPIC, value=data)
-        producer.flush() # Gửi ngay lập tức
-        
-        return jsonify({"status": "event received"}), 201
+        if producer:
+            producer.send(KAFKA_TOPIC, value=data)
+            producer.flush()
+            print("✅ Event sent to Kafka.")
+            return jsonify({"status": "event received"}), 201
+        else:
+            print("❌ Kafka producer not initialized.")
+            return jsonify({"error": "Kafka producer not initialized"}), 503
         
     except Exception as e:
         print(f"Lỗi khi gửi sự kiện: {e}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=False)

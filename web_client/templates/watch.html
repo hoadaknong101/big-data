@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="relative w-full h-screen bg-black overflow-hidden">
+    <!-- Back Button (Auto-hide logic can be added via JS, keeping it simple for now) -->
+    <a href="{{ url_for('main.dashboard') }}" class="absolute top-8 left-8 z-50 text-white text-2xl hover:text-gray-300 transition opacity-80 hover:opacity-100 flex items-center gap-2">
+        <i class="fas fa-arrow-left"></i>
+        <span class="text-lg font-bold">Back to Browse</span>
+    </a>
+
+    <!-- Video Player Container -->
+    <div class="absolute inset-0 flex items-center justify-center">
+        <!-- Using an iframe for a trailer or a placeholder video -->
+        <!-- For demo purposes, we can use a YouTube embed or a sample video file if available. 
+             Using a generic "Big Buck Bunny" or similar open source video for reliable playback simulation. -->
+        <video controls autoplay class="w-full h-full object-contain">
+            <source src="http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+    </div>
+
+    <!-- Overlay Info (Optional, fades out) -->
+    <div class="absolute bottom-12 left-12 z-40 pointer-events-none">
+        <h1 class="text-white text-4xl font-bold drop-shadow-lg mb-2">{{ movie.title }}</h1>
+        <p class="text-gray-300 text-lg drop-shadow-md max-w-2xl line-clamp-2">{{ movie.overview }}</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Simple script to hide cursor and UI when inactive
+    let timeout;
+    document.addEventListener('mousemove', () => {
+        document.body.style.cursor = 'default';
+        document.querySelector("a[href='{{ url_for('main.dashboard') }}']").classList.remove('opacity-0');
+        clearTimeout(timeout);
+        timeout = setTimeout(() => {
+            document.body.style.cursor = 'none';
+            document.querySelector("a[href='{{ url_for('main.dashboard') }}']").classList.add('opacity-0');
+        }, 3000);
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,207 @@
+:root {
+    --primary-color: #e50914;
+    --dark-bg: #141414;
+    --light-text: #fff;
+    --gray-text: #aaa;
+}
+
+body {
+    background-color: var(--dark-bg);
+    color: var(--light_text);
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+a {
+    color: var(--light-text);
+    text-decoration: none;
+}
+
+/* Navbar */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 4%;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.7) 10%, rgba(0,0,0,0));
+    position: fixed;
+    top: 0;
+    width: 92%;
+    z-index: 1000;
+}
+
+.logo {
+    color: var(--primary-color);
+    font-size: 30px;
+    font-weight: bold;
+}
+
+.nav-links a {
+    margin-left: 20px;
+    font-size: 14px;
+}
+
+.btn {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 7px 17px;
+    border-radius: 3px;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.btn:hover {
+    background-color: #f40612;
+}
+
+/* Hero Section */
+.hero {
+    height: 100vh;
+    background-image: url('https://assets.nflxext.com/ffe/siteui/vlv3/f841d4c7-10e1-40af-bcae-07a3f8dc141a/f6d7434e-d6de-4185-a6d4-c77a2d08737b/US-en-20220502-popsignuptwoweeks-perspective_alpha_website_medium.jpg');
+    background-size: cover;
+    background-position: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    position: relative;
+}
+
+.hero::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.6);
+    z-index: 1;
+}
+
+.hero-content {
+    z-index: 2;
+    max-width: 650px;
+}
+
+.hero h1 {
+    font-size: 3.125rem;
+    margin-bottom: 1rem;
+}
+
+.hero p {
+    font-size: 1.625rem;
+    margin-bottom: 2rem;
+}
+
+/* Forms */
+.auth-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: rgba(0,0,0,0.75);
+}
+
+.form-box {
+    background-color: rgba(0,0,0,0.75);
+    padding: 60px 68px 40px;
+    border-radius: 4px;
+    width: 100%;
+    max-width: 300px;
+}
+
+.form-box h2 {
+    margin-bottom: 28px;
+}
+
+.input-group {
+    margin-bottom: 16px;
+}
+
+.input-group input {
+    width: 100%;
+    height: 50px;
+    background: #333;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    padding: 0 20px;
+    box-sizing: border-box;
+}
+
+.form-box .btn {
+    width: 100%;
+    height: 48px;
+    margin-top: 24px;
+}
+
+/* Dashboard */
+.dashboard-container {
+    padding: 80px 4%;
+}
+
+.movie-row {
+    display: flex;
+    overflow-x: auto;
+    padding: 20px 0;
+}
+
+.movie-card {
+    min-width: 200px;
+    height: 300px;
+    background-color: #333;
+    margin-right: 10px;
+    border-radius: 4px;
+    transition: transform 450ms;
+    position: relative;
+    overflow: hidden;
+}
+
+.movie-card:hover {
+    transform: scale(1.08);
+    z-index: 10;
+}
+
+.movie-info {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    padding: 10px;
+    background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
+}
+
+.movie-title {
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.movie-genres {
+    font-size: 12px;
+    color: var(--gray-text);
+}
+
+/* Profile */
+.profile-container {
+    padding: 100px 4%;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.profile-header {
+    border-bottom: 1px solid #333;
+    padding-bottom: 20px;
+    margin-bottom: 20px;
+}
+
+.profile-form input {
+    background: #333;
+    border: 1px solid #333;
+    color: white;
+    padding: 10px;
+    width: 100%;
+    margin-bottom: 20px;
+}

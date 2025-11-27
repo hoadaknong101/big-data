@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="relative h-screen w-full bg-[url('https://assets.nflxext.com/ffe/siteui/vlv3/f841d4c7-10e1-40af-bcae-07a3f8dc141a/f6d7434e-d6de-4185-a6d4-c77a2d08737b/US-en-20220502-popsignuptwoweeks-perspective_alpha_website_medium.jpg')] bg-cover bg-center bg-no-repeat">
+    <div class="absolute inset-0 bg-black/60"></div>
+    
+    <div class="relative z-10 flex items-center justify-center h-full px-4">
+        <div class="bg-black/75 p-8 md:p-16 rounded-lg w-full max-w-md">
+            <h1 class="text-3xl font-bold mb-8">Sign Up</h1>
+            
+            <form method="POST" action="{{ url_for('auth.register') }}" class="space-y-6">
+                <div class="relative">
+                    <input type="email" name="email" id="email" class="block w-full px-4 py-3 rounded bg-[#333] text-white placeholder-gray-500 focus:outline-none focus:bg-[#454545]" placeholder="Email address" required>
+                </div>
+                <div class="relative">
+                    <input type="text" name="username" id="username" class="block w-full px-4 py-3 rounded bg-[#333] text-white placeholder-gray-500 focus:outline-none focus:bg-[#454545]" placeholder="Username" required>
+                </div>
+                <div class="relative">
+                    <input type="password" name="password" id="password" class="block w-full px-4 py-3 rounded bg-[#333] text-white placeholder-gray-500 focus:outline-none focus:bg-[#454545]" placeholder="Password" required>
+                </div>
+                
+                <button type="submit" class="w-full bg-[#E50914] hover:bg-[#b20710] text-white font-bold py-3 rounded transition duration-200">
+                    Sign Up
+                </button>
+            </form>
+            
+            <div class="mt-8 text-gray-400">
+                <p>Already have an account? <a href="{{ url_for('auth.login') }}" class="text-white hover:underline">Sign in now</a>.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
