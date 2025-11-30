@@ -75,6 +75,85 @@ def create_tables(engine):
                 timestamp INTEGER
             );
         """))
+
+        # Bảng user_events
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS user_events (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                movie_id INTEGER NOT NULL,
+                event_type VARCHAR(50) NOT NULL,
+                event_timestamp TIMESTAMP NOT NULL,
+                processed_at TIMESTAMP NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX idx_user_events_user_id ON user_events(user_id);
+            CREATE INDEX idx_user_events_movie_id ON user_events(movie_id);
+            CREATE INDEX idx_user_events_event_type ON user_events(event_type);
+            CREATE INDEX idx_user_events_timestamp ON user_events(event_timestamp);
+            CREATE INDEX IF NOT EXISTS idx_user_events_timestamp ON user_events(event_timestamp DESC);
+            CREATE INDEX IF NOT EXISTS idx_user_events_user_movie ON user_events(user_id, movie_id);
+            CREATE INDEX IF NOT EXISTS idx_user_events_user_type ON user_events(user_id, event_type);
+
+            CREATE OR REPLACE VIEW user_events_stats AS
+            SELECT 
+                event_type,
+                COUNT(*) as total_events,
+                COUNT(DISTINCT user_id) as unique_users,
+                COUNT(DISTINCT movie_id) as unique_movies,
+                MIN(event_timestamp) as first_event,
+                MAX(event_timestamp) as last_event
+            FROM user_events
+            GROUP BY event_type;
+
+
+            CREATE OR REPLACE FUNCTION get_recent_events(limit_count INTEGER DEFAULT 10)
+            RETURNS TABLE (
+                id INTEGER,
+                user_id INTEGER,
+                movie_id INTEGER,
+                event_type VARCHAR,
+                event_timestamp TIMESTAMP,
+                processed_at TIMESTAMP
+            ) AS $$
+            BEGIN
+                RETURN QUERY
+                SELECT 
+                    ue.id,
+                    ue.user_id,
+                    ue.movie_id,
+                    ue.event_type,
+                    ue.event_timestamp,
+                    ue.processed_at
+                FROM user_events ue
+                ORDER BY ue.processed_at DESC
+                LIMIT limit_count;
+            END;
+            $$ LANGUAGE plpgsql;
+
+
+            CREATE OR REPLACE FUNCTION get_user_events(p_user_id INTEGER, limit_count INTEGER DEFAULT 100)
+            RETURNS TABLE (
+                id INTEGER,
+                movie_id INTEGER,
+                event_type VARCHAR,
+                event_timestamp TIMESTAMP
+            ) AS $$
+            BEGIN
+                RETURN QUERY
+                SELECT 
+                    ue.id,
+                    ue.movie_id,
+                    ue.event_type,
+                    ue.event_timestamp
+                FROM user_events ue
+                WHERE ue.user_id = p_user_id
+                ORDER BY ue.event_timestamp DESC
+                LIMIT limit_count;
+            END;
+            $$ LANGUAGE plpgsql;
+        """))
         conn.commit()
     print("✅ Tạo bảng hoàn tất.")
 

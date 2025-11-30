@@ -15,12 +15,13 @@ RUN pip install --no-cache-dir \
 
 # Copy application code
 COPY processor.py /app/processor.py
+COPY run_user_events_subscriber.py /app/run_user_events_subscriber.py
 
 # Set working directory
 WORKDIR /app
 
-# Đảm bảo file có quyền execute
-RUN chmod +x /app/processor.py
+# Đảm bảo files có quyền execute
+RUN chmod +x /app/processor.py /app/run_user_events_subscriber.py
 
 # Keep container running
 CMD ["tail", "-f", "/dev/null"]

@@ -40,23 +40,6 @@ services:
       timeout: 20s
       retries: 3
 
-  # Service: Data Importer
-  # data-importer:
-  #   build: ./data_importer
-  #   container_name: data-importer
-  #   depends_on:
-  #     postgres-db:
-  #       condition: service_healthy
-  #   environment:
-  #     POSTGRES_USER: ${POSTGRES_USER}
-  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-  #     POSTGRES_DB: ${POSTGRES_DB}
-  #     POSTGRES_HOST: postgres-db
-  #   volumes:
-  #     - ./data:/app/data
-  #   networks:
-  #     - app-network
-
   # 3. MinIO (Storage cho Milvus)
   minio:
     image: minio/minio:RELEASE.2023-03-20T20-16-18Z
@@ -159,44 +142,6 @@ services:
       kafka:
         condition: service_healthy
 
-  # 6. Service: Web Client
-  # web-client:
-  #   build: ./web_client
-  #   container_name: web-client
-  #   ports:
-  #     - "5001:5001"
-  #   networks:
-  #     - app-network
-  #   environment:
-  #     POSTGRES_USER: ${POSTGRES_USER}
-  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-  #     POSTGRES_DB: ${POSTGRES_DB}
-  #     POSTGRES_HOST: postgres-db
-  #     API_GATEWAY_URL: http://api-gateway:5000
-  #   depends_on:
-  #     postgres-db:
-  #       condition: service_healthy
-  #     api-gateway:
-  #       condition: service_started
-
-  # 7. Service: API Gateway
-  # api-gateway:
-  #   build: ./api_gateway
-  #   container_name: api-gateway
-  #   env_file: .env
-  #   ports:
-  #     - "5000:5000"
-  #   networks:
-  #     - app-network
-  #   restart: on-failure
-  #   depends_on:
-  #     postgres-db:
-  #       condition: service_healthy
-  #     milvus-standalone:
-  #       condition: service_healthy
-  #     kafka:
-  #       condition: service_healthy
-
   # 7. Spark Master (Apache Spark Official)
   spark-master:
     image: apache/spark:3.5.0-scala2.12-java11-python3-ubuntu
@@ -240,18 +185,18 @@ services:
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
     restart: unless-stopped
 
-  # 9. Spark Processor
-  spark-processor:
+  # 9. Spark Processor - Ratings (Local Mode)
+  # Xử lý ratings từ Kafka topic được cấu hình trong KAFKA_TOPIC
+  # Chỉ lưu events có event_type="click" vào bảng ratings
+  spark-processor-ratings:
     build: ./spark_processor
-    container_name: spark-processor
+    container_name: spark-processor-ratings
     env_file: .env
+    environment:
+      - RUN_MODE=ratings  # Chạy hàm main() gốc
     networks:
       - app-network
     depends_on:
-      spark-master:
-        condition: service_started
-      spark-worker:
-        condition: service_started
       kafka:
         condition: service_healthy
       postgres-db:
@@ -259,20 +204,35 @@ services:
     restart: on-failure
     command: >
       /bin/bash -c "
-      echo 'Waiting for Spark cluster to be ready...';
-      sleep 40;
-
+      echo 'Starting Ratings Processor (Local Mode)...';
+      sleep 20;
       sed -i 's/\r$//' /app/processor.py;
-      /opt/spark/bin/spark-submit \
-        --master spark://spark-master:7077 \
-        --deploy-mode client \
-        --driver-memory 1g \
-        --executor-memory 1g \
-        --executor-cores 1 \
-        --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.postgresql:postgresql:42.6.0 \
-        --conf spark.sql.streaming.checkpointLocation=/tmp/checkpoint \
-        --conf spark.driver.host=spark-processor \
-        /app/processor.py
+      /opt/spark/bin/spark-submit --master local[2] --driver-memory 1g --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.postgresql:postgresql:42.6.0 --conf spark.sql.streaming.checkpointLocation=/tmp/checkpoint/ratings /app/processor.py
+      "
+
+  # 10. Spark Processor - User Events (Local Mode)
+  # Subscribe topic 'user-events' và lưu TẤT CẢ events vào bảng user_events
+  # Chạy real-time 24/7 và đợi message mới
+  spark-processor-user-events:
+    build: ./spark_processor
+    container_name: spark-processor-user-events
+    env_file: .env
+    environment:
+      - RUN_MODE=user_events  # Chạy hàm subscribe_user_events()
+    networks:
+      - app-network
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres-db:
+        condition: service_healthy
+    restart: on-failure
+    command: >
+      /bin/bash -c "
+      echo 'Starting User Events Processor (Local Mode)...';
+      sleep 20;
+      sed -i 's/\r$//' /app/processor.py;
+      /opt/spark/bin/spark-submit --master local[2] --driver-memory 1g --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.postgresql:postgresql:42.6.0 --conf spark.sql.streaming.checkpointLocation=/tmp/checkpoint/user-events /app/processor.py
       "
 
 networks:
