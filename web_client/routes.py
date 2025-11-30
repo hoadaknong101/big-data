@@ -159,13 +159,110 @@ def api_search():
 @main_bp.route('/api/recommendations')
 @login_required
 def api_recommendations():
-    # Mock or fetch from API Gateway
-    # For now, return random movies
-    movies = Movie.query.order_by(db.func.random()).limit(10).all()
-    return {'results': [movie.to_dict() for movie in movies]}
+    """
+    Lấy movie recommendations từ API Gateway (Milvus vector search)
+    Nếu không có dataset_user_id hoặc API Gateway fail, fallback về random movies
+    """
+    try:
+        # Kiểm tra user có dataset_user_id không
+        if not current_user.dataset_user_id:
+            print(f"User {current_user.id} không có dataset_user_id, trả về random movies")
+            movies = Movie.query.order_by(db.func.random()).limit(10).all()
+            return {'results': [movie.to_dict() for movie in movies]}
+        
+        # Gọi API Gateway để lấy recommendations
+        try:
+            response = requests.get(
+                f"{API_GATEWAY_URL}/recommendations/{current_user.dataset_user_id}",
+                timeout=5
+            )
+            
+            if response.status_code == 200:
+                recommendations = response.json()
+                print(f"✅ Lấy được {len(recommendations)} recommendations từ API Gateway")
+                
+                # Convert format từ API Gateway sang format frontend cần
+                # API Gateway trả về: [{"id": 1, "title": "...", "genres": "...", "poster_url": "..."}]
+                # Frontend cần: {"results": [...]}
+                results = []
+                for movie_data in recommendations:
+                    # Lấy thêm thông tin từ database nếu cần
+                    movie = Movie.query.get(movie_data['id'])
+                    if movie:
+                        results.append(movie.to_dict())
+                    else:
+                        # Nếu không tìm thấy trong DB, dùng data từ API Gateway
+                        results.append({
+                            'id': movie_data['id'],
+                            'title': movie_data['title'],
+                            'genres': movie_data['genres'],
+                            'poster_url': movie_data.get('poster_url', 'https://image.tmdb.org/t/p/w500/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg'),
+                            'overview': 'Recommended for you based on your viewing history.',
+                            'release_date': None,
+                            'rating_avg': 0.0
+                        })
+                
+                return {'results': results}
+            else:
+                print(f"⚠️ API Gateway error: {response.status_code}, fallback to random")
+                movies = Movie.query.order_by(db.func.random()).limit(10).all()
+                return {'results': [movie.to_dict() for movie in movies]}
+                
+        except requests.exceptions.RequestException as e:
+            print(f"⚠️ API Gateway unavailable: {e}, fallback to random")
+            movies = Movie.query.order_by(db.func.random()).limit(10).all()
+            return {'results': [movie.to_dict() for movie in movies]}
+            
+    except Exception as e:
+        print(f"❌ Error in api_recommendations: {e}")
+        # Fallback to random movies
+        movies = Movie.query.order_by(db.func.random()).limit(10).all()
+        return {'results': [movie.to_dict() for movie in movies]}
 
 @main_bp.route('/api/trending')
 def api_trending():
     # Logic: Get 30 random movies
     movies = Movie.query.order_by(db.func.random()).limit(30).all()
     return {'results': [movie.to_dict() for movie in movies]}
+
+@main_bp.route('/api/track-click', methods=['POST'])
+@login_required
+def track_click():
+    """
+    Track movie click event and send to Kafka via API Gateway
+    """
+    try:
+        data = request.json
+        movie_id = data.get('movie_id')
+        
+        if not movie_id:
+            return {'error': 'movie_id is required'}, 400
+        
+        # Prepare event data
+        event_data = {
+            'user_id': current_user.dataset_user_id or current_user.id,
+            'movie_id': movie_id,
+            'event_type': 'click'
+        }
+        
+        # Send to API Gateway
+        try:
+            response = requests.post(
+                f"{API_GATEWAY_URL}/event",
+                json=event_data,
+                timeout=5
+            )
+            
+            if response.status_code == 200:
+                return {'success': True, 'message': 'Click event tracked'}, 200
+            else:
+                print(f"API Gateway error: {response.status_code} - {response.text}")
+                return {'error': 'Failed to track event'}, 500
+                
+        except requests.exceptions.RequestException as e:
+            print(f"Error sending event to API Gateway: {e}")
+            return {'error': 'API Gateway unavailable'}, 503
+            
+    except Exception as e:
+        print(f"Error in track_click: {e}")
+        return {'error': str(e)}, 500

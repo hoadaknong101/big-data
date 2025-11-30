@@ -7,10 +7,13 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      TZ: Asia/Ho_Chi_Minh
+      PGTZ: Asia/Ho_Chi_Minh
     ports:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      - /etc/localtime:/etc/localtime:ro
     networks:
       - app-network
     restart: unless-stopped
@@ -234,6 +237,20 @@ services:
       sed -i 's/\r$//' /app/processor.py;
       /opt/spark/bin/spark-submit --master local[2] --driver-memory 1g --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.postgresql:postgresql:42.6.0 --conf spark.sql.streaming.checkpointLocation=/tmp/checkpoint/user-events /app/processor.py
       "
+
+  # 11. Dashboard - Web Dashboard cho Analytics và Management
+  dashboard:
+    build: ./dashboard
+    container_name: dashboard
+    ports:
+      - "5002:5002"
+    env_file: .env
+    networks:
+      - app-network
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    restart: unless-stopped
 
 networks:
   app-network:

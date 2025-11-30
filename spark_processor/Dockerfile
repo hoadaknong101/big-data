@@ -2,6 +2,10 @@ FROM apache/spark:3.5.0-scala2.12-java11-python3-ubuntu
 
 USER root
 
+# Set timezone to Vietnam (Ho Chi Minh City)
+ENV TZ=Asia/Ho_Chi_Minh
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 # Cài đặt các dependencies cần thiết
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \

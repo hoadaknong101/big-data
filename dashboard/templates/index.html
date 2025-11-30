@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+
+{% block title %}Trang chủ - Real-time Analytics{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-medium" style="color: var(--text-primary);">Real-time Analytics</h2>
+        <div class="flex items-center space-x-2">
+            <div id="connection-status" class="flex items-center space-x-2 px-3 py-2 bg-white rounded shadow-sm">
+                <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                <span class="text-sm" style="color: var(--text-secondary);">Connected</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="mat-card">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm" style="color: var(--text-secondary);">Tổng sự kiện</p>
+                    <p id="total-events" class="text-3xl font-medium mt-2" style="color: var(--text-primary);">0</p>
+                </div>
+                <span class="material-icons" style="font-size: 48px; color: var(--primary);">analytics</span>
+            </div>
+        </div>
+        
+        <div class="mat-card">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm" style="color: var(--text-secondary);">Người dùng hoạt động</p>
+                    <p id="total-users" class="text-3xl font-medium mt-2" style="color: var(--text-primary);">0</p>
+                </div>
+                <span class="material-icons" style="font-size: 48px; color: var(--primary);">people</span>
+            </div>
+        </div>
+        
+        <div class="mat-card">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm" style="color: var(--text-secondary);">Phim được xem</p>
+                    <p id="total-movies" class="text-3xl font-medium mt-2" style="color: var(--text-primary);">0</p>
+                </div>
+                <span class="material-icons" style="font-size: 48px; color: var(--primary);">movie</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Charts Row 1 -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Views Over Time -->
+        <div class="mat-card">
+            <h3 class="text-lg font-medium mb-4" style="color: var(--text-primary);">Lượt xem theo thời gian (24h)</h3>
+            <div class="bg-gray-50 rounded p-4">
+                <canvas id="viewsOverTimeChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- Top Movies -->
+        <div class="mat-card">
+            <h3 class="text-lg font-medium mb-4" style="color: var(--text-primary);">Top 10 phim được xem nhiều nhất</h3>
+            <div class="bg-gray-50 rounded p-4">
+                <canvas id="topMoviesChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Charts Row 2 -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Event Distribution -->
+        <div class="mat-card">
+            <h3 class="text-lg font-medium mb-4" style="color: var(--text-primary);">Phân bố loại sự kiện</h3>
+            <div class="bg-gray-50 rounded p-4 flex justify-center">
+                <canvas id="eventDistributionChart" style="max-height: 300px;"></canvas>
+            </div>
+        </div>
+        
+        <!-- Recent Events -->
+        <div class="mat-card">
+            <h3 class="text-lg font-medium mb-4" style="color: var(--text-primary);">Sự kiện gần đây</h3>
+            <div class="bg-gray-50 rounded p-4 overflow-y-auto" style="max-height: 350px;">
+                <div id="recent-events" class="space-y-2">
+                    <!-- Events will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Initialize Socket.IO
+    const socket = io();
+    
+    // Chart instances
+    let viewsOverTimeChart, topMoviesChart, eventDistributionChart;
+    
+    // Chart configurations
+    const chartOptions = {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+            legend: {
+                labels: {
+                    color: '#424242'
+                }
+            }
+        },
+        scales: {
+            y: {
+                ticks: { color: '#757575' },
+                grid: { color: 'rgba(0, 0, 0, 0.05)' }
+            },
+            x: {
+                ticks: { color: '#757575' },
+                grid: { color: 'rgba(0, 0, 0, 0.05)' }
+            }
+        }
+    };
+    
+    // Initialize charts
+    function initCharts() {
+        // Views Over Time Chart (Line)
+        const viewsCtx = document.getElementById('viewsOverTimeChart').getContext('2d');
+        viewsOverTimeChart = new Chart(viewsCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Lượt xem',
+                    data: [],
+                    borderColor: '#1976d2',
+                    backgroundColor: 'rgba(25, 118, 210, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: chartOptions
+        });
+        
+        // Top Movies Chart (Bar)
+        const topMoviesCtx = document.getElementById('topMoviesChart').getContext('2d');
+        topMoviesChart = new Chart(topMoviesCtx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Lượt xem',
+                    data: [],
+                    backgroundColor: '#1976d2',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                ...chartOptions,
+                indexAxis: 'y',
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        ticks: { 
+                            color: '#757575',
+                            precision: 0
+                        },
+                        grid: { color: 'rgba(0, 0, 0, 0.05)' }
+                    },
+                    y: {
+                        ticks: { 
+                            color: '#757575',
+                            font: {
+                                size: 11
+                            }
+                        },
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+        
+        // Event Distribution Chart (Pie)
+        const eventDistCtx = document.getElementById('eventDistributionChart').getContext('2d');
+        eventDistributionChart = new Chart(eventDistCtx, {
+            type: 'doughnut',
+            data: {
+                labels: [],
+                datasets: [{
+                    data: [],
+                    backgroundColor: [
+                        '#1976d2',
+                        '#42a5f5',
+                        '#64b5f6',
+                        '#90caf9',
+                        '#bbdefb'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            color: '#424242'
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Update charts with new data
+    function updateCharts(data) {
+        // Update totals
+        document.getElementById('total-events').textContent = data.totals.events.toLocaleString();
+        document.getElementById('total-users').textContent = data.totals.users.toLocaleString();
+        document.getElementById('total-movies').textContent = data.totals.movies.toLocaleString();
+        
+        // Update Views Over Time Chart
+        viewsOverTimeChart.data.labels = data.views_over_time.labels;
+        viewsOverTimeChart.data.datasets[0].data = data.views_over_time.data;
+        viewsOverTimeChart.update('none'); // 'none' for smooth animation
+        
+        // Update Top Movies Chart
+        topMoviesChart.data.labels = data.top_movies.labels;
+        topMoviesChart.data.datasets[0].data = data.top_movies.data;
+        topMoviesChart.update('none');
+        
+        // Update Event Distribution Chart
+        eventDistributionChart.data.labels = data.event_distribution.labels;
+        eventDistributionChart.data.datasets[0].data = data.event_distribution.data;
+        eventDistributionChart.update('none');
+        
+        // Update Recent Events
+        const recentEventsDiv = document.getElementById('recent-events');
+        recentEventsDiv.innerHTML = data.recent_events.map(event => `
+            <div class="p-3 bg-white rounded shadow-sm">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <p class="font-medium" style="color: var(--text-primary);">${event.movie_title}</p>
+                        <p class="text-sm" style="color: var(--text-secondary);">User #${event.user_id} - ${event.event_type}</p>
+                    </div>
+                    <span class="text-xs" style="color: var(--text-secondary);">${event.timestamp}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    // Socket.IO event handlers
+    socket.on('connect', () => {
+        console.log('Connected to WebSocket');
+        document.getElementById('connection-status').innerHTML = `
+            <div class="w-2 h-2 rounded-full bg-green-500"></div>
+            <span class="text-sm" style="color: var(--text-secondary);">Connected</span>
+        `;
+    });
+    
+    socket.on('disconnect', () => {
+        console.log('Disconnected from WebSocket');
+        document.getElementById('connection-status').innerHTML = `
+            <div class="w-2 h-2 rounded-full bg-red-500"></div>
+            <span class="text-sm" style="color: var(--text-secondary);">Disconnected</span>
+        `;
+    });
+    
+    socket.on('stats_update', (data) => {
+        console.log('Received stats update:', data);
+        updateCharts(data);
+    });
+    
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        initCharts();
+        
+        // Request initial stats
+        socket.emit('request_stats');
+    });
+</script>
+{% endblock %}

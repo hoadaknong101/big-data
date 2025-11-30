@@ -10,21 +10,21 @@ load_dotenv()
 
 # --- Configs ---
 # DB
-DB_USER = os.environ.get('POSTGRES_USER')
-DB_PASSWORD = os.environ.get('POSTGRES_PASSWORD')
-DB_HOST = os.environ.get('POSTGRES_HOST')
-DB_NAME = os.environ.get('POSTGRES_DB')
+DB_USER = "admin"
+DB_PASSWORD = "admin"
+DB_HOST = "127.0.0.1"
+DB_NAME = "movielens"
 DB_URL = f'postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:5432/{DB_NAME}'
 print(DB_URL)
 
 # Milvus
-MILVUS_HOST = os.environ.get('MILVUS_HOST')
-MILVUS_PORT = os.environ.get('MILVUS_PORT')
+MILVUS_HOST = "127.0.0.1"
+MILVUS_PORT = "19530"
 print(MILVUS_HOST, MILVUS_PORT)
 
 # Model
 EMBEDDING_DIM = 32 # Kích thước vector embedding
-EPOCHS = 5
+EPOCHS = 1
 BATCH_SIZE = 1024
 LEARNING_RATE = 0.005
 
@@ -223,9 +223,28 @@ def ingest_to_milvus(user_collection, movie_collection, user_embeddings, movie_e
     movie_collection.load()
     print("✅ Nạp Milvus hoàn tất.")
 
+def train_and_ingest():
+    try:
+        wait_for_service(DB_HOST, 5432, "Postgres")
+        wait_for_service(MILVUS_HOST, 19530, "Milvus")
+    
+        db_engine = connect_db()
+        connect_milvus()
+    
+        user_col, movie_col = create_milvus_collections()
+    
+        u_embeds, m_embeds, u_map, m_map = train_model(db_engine)
+    
+        ingest_to_milvus(user_col, movie_col, u_embeds, m_embeds, u_map, m_map)
+
+        return True
+    except Exception as e:
+        print(f"Error training and ingesting: {str(e)}")
+        return False
+
 if __name__ == "__main__":
-    wait_for_service(os.environ.get('POSTGRES_HOST'), 5432, "Postgres")
-    wait_for_service(os.environ.get('MILVUS_HOST'), 19530, "Milvus")
+    wait_for_service(DB_HOST, 5432, "Postgres")
+    wait_for_service(MILVUS_HOST, 19530, "Milvus")
     
     db_engine = connect_db()
     connect_milvus()

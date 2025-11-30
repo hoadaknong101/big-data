@@ -13,7 +13,6 @@ DB_NAME = os.environ.get('POSTGRES_DB')
 DB_URL = f"jdbc:postgresql://{DB_HOST}:5432/{DB_NAME}"
 DB_TABLE = "ratings"
 
-# --- Hàm Subscribe User Events ---
 def subscribe_user_events():
     """
     Hàm này thực hiện subscribe topic 'user-events' từ Kafka và lưu tất cả
@@ -101,9 +100,9 @@ def subscribe_user_events():
     print("=" * 60)
     print("Bước 5: Chuyển đổi và làm sạch dữ liệu")
     print("=" * 60)
-    
+
     transformed_events_df = parsed_events_df \
-        .withColumn("event_timestamp", (col("timestamp") / 1000).cast(TimestampType())) \
+        .withColumn("event_timestamp", col("timestamp").cast(TimestampType())) \
         .withColumn("processed_at", current_timestamp()) \
         .select(
             "user_id",
@@ -298,8 +297,6 @@ def main():
     # Bước 5: Chuyển đổi và làm sạch dữ liệu
     # Filter chỉ lấy events có event_type = "click" hoặc "watch"
     # Chuyển đổi thành rating: click = 4.0, watch = 5.0
-    # Convert timestamp từ Unix timestamp (milliseconds) sang TimestampType
-    # Chia cho 1000 để chuyển từ milliseconds sang seconds
     print("=" * 60)
     print("Bước 5: Filter và chuyển đổi dữ liệu")
     print("=" * 60)
@@ -311,7 +308,7 @@ def main():
         .filter((col("event_type") == "click") | (col("event_type") == "watch")) \
         .withColumn("rating", when(col("event_type") == "click", lit(4.0))
                            .when(col("event_type") == "watch", lit(5.0))) \
-        .withColumn("timestamp", (col("timestamp") / 1000).cast(TimestampType())) \
+        .withColumn("timestamp", col("timestamp").cast(TimestampType())) \
         .select(
             "user_id",
             "movie_id",
@@ -325,8 +322,6 @@ def main():
     print("  - timestamp: milliseconds / 1000 -> TimestampType\n")
     
     # Bước 6: Định nghĩa hàm ghi dữ liệu vào PostgreSQL
-    # foreachBatch cho phép xử lý từng batch dữ liệu
-    # Mỗi khi có message mới, hàm này sẽ được gọi
     print("=" * 60)
     print("Bước 6: Chuẩn bị ghi dữ liệu vào PostgreSQL")
     print("=" * 60)
@@ -380,9 +375,6 @@ def main():
             print(f"Epoch {epoch_id}: Không có dữ liệu mới trong batch này")
     
     # Bước 7: Bắt đầu streaming query
-    # writeStream: Bắt đầu ghi streaming data
-    # outputMode("update"): Ghi các row đã update
-    # foreachBatch: Xử lý từng batch bằng hàm đã định nghĩa
     print("=" * 60)
     print("Bước 7: Bắt đầu Streaming Query")
     print("=" * 60)
@@ -402,9 +394,7 @@ def main():
     print("✓ Streaming Query đã được khởi động thành công!")
     print("✓ Hệ thống đang lắng nghe và xử lý message real-time...\n")
     
-    # Bước 8: Chờ đợi và xử lý liên tục
-    # awaitTermination(): Giữ cho chương trình chạy mãi mãi
-    # Chỉ dừng khi có lỗi hoặc người dùng dừng thủ công (Ctrl+C)
+    # Bước 8: Xử lý liên tục
     print("=" * 60)
     print("Bước 8: Chạy liên tục và đợi message mới")
     print("=" * 60)
@@ -428,8 +418,6 @@ def main():
 
 
 if __name__ == "__main__":
-    # Kiểm tra biến môi trường để quyết định chạy hàm nào
-    # RUN_MODE có thể là: "user_events" hoặc "ratings" (default)
     run_mode = os.environ.get('RUN_MODE', 'ratings')
     
     if run_mode == 'user_events':

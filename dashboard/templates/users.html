@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% block title %}Quản lý người dùng{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h2 class="text-2xl font-medium" style="color: var(--text-primary);">Quản lý người dùng</h2>
+            <p class="mt-2" style="color: var(--text-secondary);">Thêm, sửa, xóa thông tin người dùng</p>
+        </div>
+        <button onclick="openAddModal()" class="mat-button">
+            <span class="material-icons" style="font-size: 18px; vertical-align: middle;">person_add</span>
+            Thêm người dùng
+        </button>
+    </div>
+    
+    <!-- Search Bar -->
+    <div class="mat-card">
+        <div class="flex gap-4">
+            <input type="text" id="search-input" placeholder="Tìm kiếm theo username hoặc email..." 
+                class="flex-1 px-4 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+                onkeyup="searchUsers()">
+            <button onclick="searchUsers()" class="mat-button">
+                <span class="material-icons" style="font-size: 18px; vertical-align: middle;">search</span>
+                Tìm kiếm
+            </button>
+        </div>
+    </div>
+    
+    <!-- Users Table -->
+    <div class="mat-card">
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-sm font-medium" style="color: var(--text-secondary);">ID</th>
+                        <th class="px-4 py-3 text-left text-sm font-medium" style="color: var(--text-secondary);">Username</th>
+                        <th class="px-4 py-3 text-left text-sm font-medium" style="color: var(--text-secondary);">Email</th>
+                        <th class="px-4 py-3 text-left text-sm font-medium" style="color: var(--text-secondary);">Giới tính</th>
+                        <th class="px-4 py-3 text-left text-sm font-medium" style="color: var(--text-secondary);">Tuổi</th>
+                        <th class="px-4 py-3 text-left text-sm font-medium" style="color: var(--text-secondary);">Nghề nghiệp</th>
+                        <th class="px-4 py-3 text-left text-sm font-medium" style="color: var(--text-secondary);">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="users-tbody">
+                    <!-- Users will be loaded here -->
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        <div class="flex justify-between items-center p-4 border-t border-gray-200 mt-4">
+            <div class="text-sm" style="color: var(--text-secondary);">
+                Hiển thị <span id="showing-count">0</span> / <span id="total-count">0</span> người dùng
+            </div>
+            <div class="flex gap-2" id="pagination">
+                <!-- Pagination buttons will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div id="user-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded p-8 max-w-2xl w-full mx-4 max-h-screen overflow-y-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h3 id="modal-title" class="text-xl font-medium" style="color: var(--text-primary);">Thêm người dùng mới</h3>
+            <button onclick="closeModal()" class="text-gray-400" style="font-size: 28px;">&times;</button>
+        </div>
+        
+        <form id="user-form" class="space-y-4">
+            <input type="hidden" id="user-id">
+            
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2" style="color: var(--text-primary);">Username *</label>
+                    <input type="text" id="user-username" required
+                        class="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-2" style="color: var(--text-primary);">Email *</label>
+                    <input type="email" id="user-email" required
+                        class="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500">
+                </div>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium mb-2" style="color: var(--text-primary);">Password <span style="color: var(--text-secondary);">(để trống nếu không đổi)</span></label>
+                <input type="password" id="user-password"
+                    class="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500">
+            </div>
+            
+            <div class="grid grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2" style="color: var(--text-primary);">Giới tính</label>
+                    <select id="user-gender"
+                        class="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500">
+                        <option value="">Chọn</option>
+                        <option value="M">Nam</option>
+                        <option value="F">Nữ</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-2" style="color: var(--text-primary);">Tuổi</label>
+                    <input type="number" id="user-age" min="1" max="120"
+                        class="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-2" style="color: var(--text-primary);">Nghề nghiệp</label>
+                    <input type="number" id="user-occupation"
+                        class="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500">
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2" style="color: var(--text-primary);">Zip Code</label>
+                    <input type="text" id="user-zip"
+                        class="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-2" style="color: var(--text-primary);">Dataset User ID</label>
+                    <input type="number" id="user-dataset-id"
+                        class="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500">
+                </div>
+            </div>
+            
+            <div class="flex gap-4 pt-4">
+                <button type="submit" class="flex-1 mat-button">
+                    <span class="material-icons" style="font-size: 18px; vertical-align: middle;">save</span>
+                    Lưu
+                </button>
+                <button type="button" onclick="closeModal()" class="mat-button-secondary">
+                    Hủy
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    let currentPage = 1;
+    let totalPages = 1;
+    let searchQuery = '';
+    
+    async function loadUsers(page = 1) {
+        try {
+            const response = await fetch(`/api/users?page=${page}&per_page=20&search=${searchQuery}`);
+            const data = await response.json();
+            
+            const tbody = document.getElementById('users-tbody');
+            tbody.innerHTML = data.users.map(user => `
+                <tr class="border-b border-gray-100">
+                    <td class="px-4 py-3" style="color: var(--text-primary);">${user.id}</td>
+                    <td class="px-4 py-3">
+                        <div class="font-medium" style="color: var(--text-primary);">${user.username}</div>
+                        ${user.dataset_user_id ? `<div class="text-xs" style="color: var(--text-secondary);">Dataset ID: ${user.dataset_user_id}</div>` : ''}
+                    </td>
+                    <td class="px-4 py-3" style="color: var(--text-primary);">${user.email}</td>
+                    <td class="px-4 py-3">
+                        ${user.gender ? 
+                            `<span class="px-2 py-1 ${user.gender === 'M' ? 'bg-blue-100 text-blue-800' : 'bg-pink-100 text-pink-800'} rounded text-sm">
+                                <span class="material-icons" style="font-size: 14px; vertical-align: middle;">${user.gender === 'M' ? 'male' : 'female'}</span>
+                                ${user.gender === 'M' ? 'Nam' : 'Nữ'}
+                            </span>` : 
+                            '<span style="color: var(--text-secondary);">N/A</span>'
+                        }
+                    </td>
+                    <td class="px-4 py-3" style="color: var(--text-primary);">${user.age || 'N/A'}</td>
+                    <td class="px-4 py-3" style="color: var(--text-primary);">${user.occupation || 'N/A'}</td>
+                    <td class="px-4 py-3">
+                        <div class="flex gap-2">
+                            <button onclick="editUser(${user.id})" 
+                                class="px-3 py-1 bg-blue-600 text-white rounded text-sm">
+                                <span class="material-icons" style="font-size: 14px; vertical-align: middle;">edit</span>
+                            </button>
+                            <button onclick="deleteUser(${user.id}, '${user.username.replace(/'/g, "\\'")}')" 
+                                class="px-3 py-1 bg-red-600 text-white rounded text-sm">
+                                <span class="material-icons" style="font-size: 14px; vertical-align: middle;">delete</span>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+            
+            // Update pagination
+            currentPage = data.current_page;
+            totalPages = data.pages;
+            document.getElementById('showing-count').textContent = data.users.length;
+            document.getElementById('total-count').textContent = data.total;
+            
+            updatePagination();
+        } catch (error) {
+            console.error('Error loading users:', error);
+        }
+    }
+    
+    function updatePagination() {
+        const pagination = document.getElementById('pagination');
+        let html = '';
+        
+        if (currentPage > 1) {
+            html += `<button onclick="loadUsers(${currentPage - 1})" class="px-4 py-2 bg-gray-200 rounded text-sm">
+                <span class="material-icons" style="font-size: 18px; vertical-align: middle;">chevron_left</span>
+            </button>`;
+        }
+        
+        html += `<span class="px-4 py-2 bg-gray-100 rounded text-sm">Trang ${currentPage} / ${totalPages}</span>`;
+        
+        if (currentPage < totalPages) {
+            html += `<button onclick="loadUsers(${currentPage + 1})" class="px-4 py-2 bg-gray-200 rounded text-sm">
+                <span class="material-icons" style="font-size: 18px; vertical-align: middle;">chevron_right</span>
+            </button>`;
+        }
+        
+        pagination.innerHTML = html;
+    }
+    
+    function searchUsers() {
+        searchQuery = document.getElementById('search-input').value;
+        loadUsers(1);
+    }
+    
+    function openAddModal() {
+        document.getElementById('modal-title').textContent = 'Thêm người dùng mới';
+        document.getElementById('user-form').reset();
+        document.getElementById('user-id').value = '';
+        document.getElementById('user-modal').classList.remove('hidden');
+    }
+    
+    async function editUser(id) {
+        try {
+            const response = await fetch(`/api/users/${id}`);
+            const user = await response.json();
+            
+            document.getElementById('modal-title').textContent = 'Sửa thông tin người dùng';
+            document.getElementById('user-id').value = user.id;
+            document.getElementById('user-username').value = user.username;
+            document.getElementById('user-email').value = user.email;
+            document.getElementById('user-password').value = '';
+            document.getElementById('user-gender').value = user.gender || '';
+            document.getElementById('user-age').value = user.age || '';
+            document.getElementById('user-occupation').value = user.occupation || '';
+            document.getElementById('user-zip').value = user.zip || '';
+            document.getElementById('user-dataset-id').value = user.dataset_user_id || '';
+            
+            document.getElementById('user-modal').classList.remove('hidden');
+        } catch (error) {
+            alert('Lỗi khi tải thông tin người dùng: ' + error.message);
+        }
+    }
+    
+    async function deleteUser(id, username) {
+        if (!confirm(`Bạn có chắc muốn xóa người dùng "${username}"?`)) return;
+        
+        try {
+            const response = await fetch(`/api/users/${id}`, {
+                method: 'DELETE'
+            });
+            
+            if (response.ok) {
+                alert('Xóa người dùng thành công!');
+                loadUsers(currentPage);
+            } else {
+                const data = await response.json();
+                alert('Lỗi: ' + data.error);
+            }
+        } catch (error) {
+            alert('Lỗi khi xóa người dùng: ' + error.message);
+        }
+    }
+    
+    function closeModal() {
+        document.getElementById('user-modal').classList.add('hidden');
+    }
+    
+    document.getElementById('user-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const id = document.getElementById('user-id').value;
+        
+        // Validate required fields
+        const username = document.getElementById('user-username').value.trim();
+        const email = document.getElementById('user-email').value.trim();
+        const password = document.getElementById('user-password').value;
+        
+        if (!username || !email) {
+            alert('Vui lòng điền đầy đủ thông tin bắt buộc (Username và Email)');
+            return;
+        }
+        
+        // For new user, password is required
+        if (!id && !password) {
+            alert('Vui lòng nhập mật khẩu cho người dùng mới');
+            return;
+        }
+        
+        const data = {
+            username: username,
+            email: email,
+            gender: document.getElementById('user-gender').value || null,
+            age: parseInt(document.getElementById('user-age').value) || null,
+            occupation: parseInt(document.getElementById('user-occupation').value) || null,
+            zip: document.getElementById('user-zip').value.trim() || null,
+            dataset_user_id: parseInt(document.getElementById('user-dataset-id').value) || null
+        };
+        
+        // Only include password if provided
+        if (password) {
+            data.password = password;
+        }
+        
+        try {
+            const url = id ? `/api/users/${id}` : '/api/users';
+            const method = id ? 'PUT' : 'POST';
+            
+            console.log('Submitting user:', method, url, data);
+            
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                console.log('Success:', result);
+                alert(id ? 'Cập nhật người dùng thành công!' : 'Thêm người dùng thành công!');
+                closeModal();
+                loadUsers(currentPage);
+            } else {
+                const result = await response.json();
+                console.error('Error response:', result);
+                alert('Lỗi: ' + (result.error || 'Không thể lưu người dùng'));
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Lỗi: ' + error.message);
+        }
+    });
+    
+    // Load users on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        loadUsers(1);
+    });
+</script>
+{% endblock %}

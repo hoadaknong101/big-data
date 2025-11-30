@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block title %}Quản lý dữ liệu{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="mb-6">
+        <h2 class="text-2xl font-medium" style="color: var(--text-primary);">Quản lý dữ liệu</h2>
+        <p class="mt-2" style="color: var(--text-secondary);">Huấn luyện model và quản lý dữ liệu</p>
+    </div>
+    
+    <!-- Training Section -->
+    <div class="mat-card">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center space-x-3">
+                <span class="material-icons" style="font-size: 32px; color: var(--primary);">model_training</span>
+                <div>
+                    <h3 class="text-lg font-medium" style="color: var(--text-primary);">Model Training</h3>
+                    <p class="text-sm" style="color: var(--text-secondary);">Matrix Factorization cho Recommendation</p>
+                </div>
+            </div>
+            <button id="train-btn" onclick="startTraining()" class="mat-button">
+                Bắt đầu huấn luyện
+            </button>
+        </div>
+        
+        <!-- Progress Section -->
+        <div id="progress-section" class="hidden mt-6">
+            <div class="mb-2 flex justify-between items-center">
+                <span class="text-sm font-medium" style="color: var(--text-primary);">Tiến trình</span>
+                <span id="progress-text" class="text-sm" style="color: var(--text-secondary);">0%</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2">
+                <div id="progress-bar" class="h-2 rounded-full transition-all duration-300" style="width: 0%; background-color: var(--primary);"></div>
+            </div>
+            <p id="status-message" class="mt-2 text-sm" style="color: var(--text-secondary);"></p>
+        </div>
+    </div>
+    
+    <!-- Training Info -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="mat-card">
+            <div class="flex items-center space-x-3 mb-4">
+                <span class="material-icons" style="color: var(--primary);">info</span>
+                <h3 class="text-lg font-medium" style="color: var(--text-primary);">Thông tin Training</h3>
+            </div>
+            <div class="space-y-2">
+                <div class="flex justify-between py-2 border-b border-gray-100">
+                    <span style="color: var(--text-secondary);">Algorithm</span>
+                    <span class="font-medium" style="color: var(--text-primary);">Matrix Factorization</span>
+                </div>
+                <div class="flex justify-between py-2 border-b border-gray-100">
+                    <span style="color: var(--text-secondary);">Framework</span>
+                    <span class="font-medium" style="color: var(--text-primary);">PyTorch</span>
+                </div>
+                <div class="flex justify-between py-2 border-b border-gray-100">
+                    <span style="color: var(--text-secondary);">Embedding Dim</span>
+                    <span class="font-medium" style="color: var(--text-primary);">32</span>
+                </div>
+                <div class="flex justify-between py-2 border-b border-gray-100">
+                    <span style="color: var(--text-secondary);">Epochs</span>
+                    <span class="font-medium" style="color: var(--text-primary);">1</span>
+                </div>
+                <div class="flex justify-between py-2">
+                    <span style="color: var(--text-secondary);">Thời gian ước tính</span>
+                    <span class="font-medium" style="color: var(--text-primary);">1-2 phút</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mat-card">
+            <div class="flex items-center space-x-3 mb-4">
+                <span class="material-icons" style="color: var(--primary);">storage</span>
+                <h3 class="text-lg font-medium" style="color: var(--text-primary);">Database Statistics</h3>
+            </div>
+            <div class="space-y-2">
+                <div class="flex justify-between py-2 border-b border-gray-100">
+                    <span style="color: var(--text-secondary);">Total Users</span>
+                    <span class="font-medium" style="color: var(--text-primary);">~6,000</span>
+                </div>
+                <div class="flex justify-between py-2 border-b border-gray-100">
+                    <span style="color: var(--text-secondary);">Total Movies</span>
+                    <span class="font-medium" style="color: var(--text-primary);">~3,900</span>
+                </div>
+                <div class="flex justify-between py-2 border-b border-gray-100">
+                    <span style="color: var(--text-secondary);">Total Ratings</span>
+                    <span class="font-medium" style="color: var(--text-primary);">~1,000,000</span>
+                </div>
+                <div class="flex justify-between py-2 border-b border-gray-100">
+                    <span style="color: var(--text-secondary);">Total Events</span>
+                    <span class="font-medium" style="color: var(--text-primary);">Real-time</span>
+                </div>
+                <div class="flex justify-between py-2">
+                    <span style="color: var(--text-secondary);">Database</span>
+                    <span class="font-medium" style="color: var(--text-primary);">PostgreSQL</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Training History -->
+    <div class="mat-card">
+        <div class="flex items-center space-x-3 mb-4">
+            <span class="material-icons" style="color: var(--primary);">history</span>
+            <h3 class="text-lg font-medium" style="color: var(--text-primary);">Lịch sử Training</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-sm font-medium" style="color: var(--text-secondary);">Thời gian</th>
+                        <th class="px-4 py-3 text-left text-sm font-medium" style="color: var(--text-secondary);">Status</th>
+                        <th class="px-4 py-3 text-left text-sm font-medium" style="color: var(--text-secondary);">Duration</th>
+                        <th class="px-4 py-3 text-left text-sm font-medium" style="color: var(--text-secondary);">Loss</th>
+                    </tr>
+                </thead>
+                <tbody id="history-tbody">
+                    <tr class="border-b border-gray-100">
+                        <td class="px-4 py-3" style="color: var(--text-secondary);">Chưa có lịch sử</td>
+                        <td class="px-4 py-3"></td>
+                        <td class="px-4 py-3"></td>
+                        <td class="px-4 py-3"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    let isTraining = false;
+    let statusCheckInterval = null;
+    
+    async function startTraining() {
+        if (isTraining) {
+            alert('Training đang chạy, vui lòng đợi!');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/train-model', {
+                method: 'POST'
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                isTraining = true;
+                document.getElementById('train-btn').disabled = true;
+                document.getElementById('train-btn').textContent = 'Đang training...';
+                document.getElementById('train-btn').style.backgroundColor = '#757575';
+                document.getElementById('progress-section').classList.remove('hidden');
+                
+                // Start polling for status
+                statusCheckInterval = setInterval(checkTrainingStatus, 2000);
+            } else {
+                alert('Lỗi: ' + data.error);
+            }
+        } catch (error) {
+            alert('Lỗi khi bắt đầu training: ' + error.message);
+        }
+    }
+    
+    async function checkTrainingStatus() {
+        try {
+            const response = await fetch('/api/train-status');
+            const data = await response.json();
+            
+            // Update progress
+            document.getElementById('progress-bar').style.width = data.progress + '%';
+            document.getElementById('progress-text').textContent = data.progress + '%';
+            document.getElementById('status-message').textContent = data.message;
+            
+            // Check if completed
+            if (!data.is_training && data.progress === 100) {
+                clearInterval(statusCheckInterval);
+                isTraining = false;
+                document.getElementById('train-btn').disabled = false;
+                document.getElementById('train-btn').textContent = 'Bắt đầu huấn luyện';
+                document.getElementById('train-btn').style.backgroundColor = '';
+                alert('Training hoàn tất thành công!');
+            } else if (!data.is_training && data.error) {
+                clearInterval(statusCheckInterval);
+                isTraining = false;
+                document.getElementById('train-btn').disabled = false;
+                document.getElementById('train-btn').textContent = 'Bắt đầu huấn luyện';
+                document.getElementById('train-btn').style.backgroundColor = '';
+                alert('Training thất bại: ' + data.error);
+            }
+        } catch (error) {
+            console.error('Error checking status:', error);
+        }
+    }
+</script>
+{% endblock %}

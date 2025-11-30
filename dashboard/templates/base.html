@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Dashboard{% endblock %} - Big Data Analytics</title>
+    
+    <!-- TailwindCSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <!-- Socket.IO Client -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    
+    <style>
+        * {
+            font-family: 'Roboto', sans-serif;
+        }
+        
+        /* Material Design Colors */
+        :root {
+            --primary: #1976d2;
+            --primary-dark: #1565c0;
+            --primary-light: #42a5f5;
+            --secondary: #424242;
+            --background: #fafafa;
+            --surface: #ffffff;
+            --error: #d32f2f;
+            --text-primary: rgba(0, 0, 0, 0.87);
+            --text-secondary: rgba(0, 0, 0, 0.6);
+        }
+        
+        body {
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+        
+        /* Fixed Sidebar */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 240px;
+            background: linear-gradient(180deg, #1976d2 0%, #1565c0 100%);
+            box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            z-index: 1000;
+        }
+        
+        /* Main content with margin for sidebar */
+        .main-content {
+            margin-left: 240px;
+            min-height: 100vh;
+            background-color: #f5f5f5;
+            overflow-y: auto;
+        }
+        
+        /* Material Card */
+        .mat-card {
+            background: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 16px;
+        }
+        
+        /* Navigation Item */
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            color: rgba(255, 255, 255, 0.9);
+            text-decoration: none;
+            border-radius: 0;
+            margin: 4px 8px;
+        }
+        
+        .nav-item.active {
+            background-color: rgba(255, 255, 255, 0.15);
+            border-left: 4px solid white;
+            padding-left: 12px;
+        }
+        
+        .nav-item .material-icons {
+            margin-right: 16px;
+            font-size: 24px;
+        }
+        
+        /* Material Design Hover Effects - Add shadow on hover */
+        .mat-button:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3) !important;
+        }
+        
+        .mat-button-secondary:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3) !important;
+        }
+        
+        button:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2) !important;
+        }
+        
+        .mat-card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+        }
+        
+        /* Navigation items - subtle highlight on hover */
+        .nav-item:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        /* Table rows */
+        tbody tr:hover {
+            background-color: rgba(0, 0, 0, 0.02);
+        }
+        
+        /* Material Button */
+        .mat-button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-weight: 500;
+            text-transform: uppercase;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: box-shadow 0.3s ease;
+        }
+        
+        .mat-button-secondary {
+            background-color: #757575;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-weight: 500;
+            text-transform: uppercase;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: box-shadow 0.3s ease;
+        }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        /* Loading Spinner */
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <!-- Fixed Sidebar -->
+    <aside class="sidebar">
+        <div class="p-4">
+            <h1 class="text-xl font-medium text-white mb-8 px-2">Analytics Dashboard</h1>
+            
+            <nav>
+                <a href="/" class="nav-item {% if request.path == '/' %}active{% endif %}">
+                    <span class="material-icons">dashboard</span>
+                    <span>Trang chủ</span>
+                </a>
+                
+                <a href="/data-management" class="nav-item {% if request.path == '/data-management' %}active{% endif %}">
+                    <span class="material-icons">model_training</span>
+                    <span>Quản lý dữ liệu</span>
+                </a>
+                
+                <a href="/movies" class="nav-item {% if request.path == '/movies' %}active{% endif %}">
+                    <span class="material-icons">movie</span>
+                    <span>Quản lý phim</span>
+                </a>
+                
+                <a href="/users" class="nav-item {% if request.path == '/users' %}active{% endif %}">
+                    <span class="material-icons">people</span>
+                    <span>Quản lý người dùng</span>
+                </a>
+            </nav>
+        </div>
+        
+        <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-white border-opacity-20">
+            <p class="text-sm text-white text-opacity-70">Big Data Analytics</p>
+            <p class="text-xs text-white text-opacity-50">v1.0.0</p>
+        </div>
+    </aside>
+    
+    <!-- Main Content Area (Scrollable) -->
+    <main class="main-content">
+        <div class="p-6">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+    
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

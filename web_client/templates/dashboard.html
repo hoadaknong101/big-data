@@ -123,20 +123,71 @@
 
 {% block scripts %}
 <script>
+    // Track click event
+    async function trackClick(movieId) {
+        try {
+            await fetch('/api/track-click', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ movie_id: movieId })
+            });
+            console.log('Click tracked for movie:', movieId);
+        } catch (error) {
+            console.error('Error tracking click:', error);
+        }
+    }
+
     // Helper to render movie cards
     function renderMovieCards(movies, containerId) {
         const container = document.getElementById(containerId);
         if (movies && movies.length > 0) {
-            container.innerHTML = movies.map(movie => `
-                <div class="flex-none w-[160px] md:w-[240px] aspect-[2/3] relative rounded cursor-pointer transition duration-300 hover:scale-105 hover:z-30" onclick='openModalData(${JSON.stringify(movie)})'>
-                    <img src="${movie.poster_url}" alt="${movie.title}" class="w-full h-full object-cover rounded">
-                    <div class="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition flex items-center justify-center">
-                        <i class="fas fa-play-circle text-4xl text-white drop-shadow-lg"></i>
+            container.innerHTML = movies.map((movie, index) => {
+                // Escape HTML to prevent XSS and syntax errors
+                const safeTitle = escapeHtml(movie.title);
+                const safePosterUrl = escapeHtml(movie.poster_url);
+                
+                return `
+                    <div class="flex-none w-[160px] md:w-[240px] aspect-[2/3] relative rounded cursor-pointer transition duration-300 hover:scale-105 hover:z-30" 
+                         data-movie-index="${index}"
+                         data-container="${containerId}"
+                         onclick="handleMovieClick('${containerId}', ${index})">
+                        <img src="${safePosterUrl}" alt="${safeTitle}" class="w-full h-full object-cover rounded">
+                        <div class="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition flex items-center justify-center">
+                            <i class="fas fa-play-circle text-4xl text-white drop-shadow-lg"></i>
+                        </div>
                     </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
+            
+            // Store movies data globally for access by click handler
+            window.moviesData = window.moviesData || {};
+            window.moviesData[containerId] = movies;
         } else {
             container.innerHTML = '<div class="text-gray-500 p-4">No movies found.</div>';
+        }
+    }
+    
+    // Escape HTML special characters
+    function escapeHtml(text) {
+        if (!text) return '';
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, m => map[m]);
+    }
+    
+    // Handle movie click with data from global storage
+    function handleMovieClick(containerId, index) {
+        const movie = window.moviesData[containerId][index];
+        if (movie) {
+            trackClick(movie.id);
+            openModalData(movie);
         }
     }
 

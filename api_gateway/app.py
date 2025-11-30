@@ -116,7 +116,7 @@ def get_recommendations(user_id):
             
         # Tạo câu truy vấn SQL an toàn
         ids_tuple = tuple(movie_ids)
-        query = f"SELECT id, title, genres FROM movies WHERE id IN {ids_tuple}"
+        query = f"SELECT id, title, genres, poster_url FROM movies WHERE id IN {ids_tuple}"
         
         movie_details_df = pd.read_sql(query, db_engine)
         
